@@ -16,11 +16,14 @@ export class CompaniesService {
   }
 
   async findAll(): Promise<Company[]> {
-    return this.companyRepository.find();
+    return this.companyRepository.find({ relations: ['contacts'] });
   }
 
   async findOne(id: number): Promise<Company | null> {
-    return this.companyRepository.findOne({ where: { id } });
+    return this.companyRepository.findOne({
+      where: { id },
+      relations: ['contacts'],
+    });
   }
 
   async update(id: number, data: Partial<Company>): Promise<Company> {

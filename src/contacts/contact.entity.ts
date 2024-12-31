@@ -12,6 +12,8 @@ export class Contact {
   @Column({ name: 'last_name' })
   lastName: string;
 
-  @ManyToOne(() => Company, (company) => company.contacts)
+  @ManyToOne(() => Company, (company) => company.contacts, {
+    onDelete: 'CASCADE',
+  })
   company: Company;
 }
