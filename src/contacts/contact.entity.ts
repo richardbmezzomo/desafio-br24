@@ -12,6 +12,6 @@ export class Contact {
   @Column({ name: 'last_name' })
   lastName: string;
 
-  @ManyToOne(() => Company, (company) => company.contacts, { eager: false })
+  @ManyToOne(() => Company, (company) => company.contacts)
   company: Company;
 }
