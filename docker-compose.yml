@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  backend:
+    image: node:22
+    container_name: backend
+    working_dir: /app
+    volumes:
+      - ./src:/app
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - DB_DATABASE=desafio-br24
+      - BITRIX_URL=https://b24-kjr9os.bitrix24.com.br/rest/
+      - BITRIX_CLIENT_ID=local.6775ad15edc574.39913578
+      - BITRIX_CLIENT_SECRET=aHIMU86jSEAt4lld25DML97E0lZr8CsPCGVhoZxK1ENOPB7qhE
+      - BITRIX_USER_ID=seu_user_id
+      - BITRIX_ACCESS_TOKEN=seu_access_token
+    depends_on:
+      - postgres
+    command: ["npm", "run", "start:dev"]
+
+  postgres:
+    image: postgres:13
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: desafio-br24
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./certs:/etc/nginx/certs
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
