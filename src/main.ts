@@ -6,8 +6,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin:
-      'https://desafio-br24-7yxcp5uzx-richardmezzomos-projects.vercel.app',
+    origin: 'https://www.richardbmezzomo.site/',
     methods: 'GET,POST,PUT,DELETE',
     credentials: true,
   });
