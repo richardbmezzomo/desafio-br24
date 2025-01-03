@@ -1,9 +1,9 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne } from 'typeorm';
+import { Entity, Column, ManyToOne, PrimaryColumn } from 'typeorm';
 import { Company } from '../companies/company.entity';
 
 @Entity('contacts')
 export class Contact {
-  @PrimaryGeneratedColumn()
+  @PrimaryColumn()
   id: number;
 
   @Column()

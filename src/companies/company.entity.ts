@@ -1,9 +1,9 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryColumn } from 'typeorm';
 import { Contact } from 'src/contacts/contact.entity';
 
 @Entity('companies')
 export class Company {
-  @PrimaryGeneratedColumn()
+  @PrimaryColumn()
   id: number;
   @Column()
   title: string;
