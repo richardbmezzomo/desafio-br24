@@ -4,9 +4,10 @@ services:
   backend:
     image: node:22
     container_name: backend
+    restart: always
     working_dir: /app
     volumes:
-      - ./src:/app
+      - .:/app  # Mapeando toda a raiz do projeto para o diretório /app no container
     ports:
       - "3000:3000"
     environment:
@@ -38,3 +39,4 @@ services:
 
 volumes:
   postgres_data:
+
