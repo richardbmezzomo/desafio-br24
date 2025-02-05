@@ -5,7 +5,6 @@ import { Repository } from 'typeorm';
 import { CreateCompanyDto } from './create-company.dto';
 import { Contact } from 'src/contacts/contact.entity';
 import { UpdateCompanyDto } from './update-company.dto';
-import axios from 'axios';
 
 @Injectable()
 export class CompaniesService {
@@ -17,9 +16,8 @@ export class CompaniesService {
     private readonly contactRepository: Repository<Contact>,
   ) {}
 
-  async createWithId(id: number, data: CreateCompanyDto): Promise<Company> {
+  async create(data: CreateCompanyDto): Promise<Company> {
     const company = this.companyRepository.create({
-      id,
       title: data.title,
     });
 
@@ -30,36 +28,13 @@ export class CompaniesService {
         (contact) => contact.name && contact.lastName,
       );
 
-      const contacts = [];
-      for (const contact of validContacts) {
-        try {
-          const contactUrl =
-            'https://b24-kjr9os.bitrix24.com.br/rest/1/kj0k18cljjedxcfg/crm.contact.add.json';
-          const response = await axios.post(contactUrl, {
-            fields: {
-              NAME: contact.name,
-              LAST_NAME: contact.lastName,
-              COMPANY_ID: id,
-            },
-          });
-
-          const bitrixContactId = (response.data as { result: number }).result;
-
-          const newContact = this.contactRepository.create({
-            id: bitrixContactId,
-            name: contact.name,
-            lastName: contact.lastName,
-            company: savedCompany,
-          });
-
-          contacts.push(newContact);
-        } catch (error) {
-          console.error(
-            `Erro ao criar contato no Bitrix (${contact.name}):`,
-            error.response?.data || error.message,
-          );
-        }
-      }
+      const contacts = validContacts.map((contact) =>
+        this.contactRepository.create({
+          name: contact.name,
+          lastName: contact.lastName,
+          company: savedCompany,
+        }),
+      );
 
       await this.contactRepository.save(contacts);
     }
@@ -71,7 +46,11 @@ export class CompaniesService {
   }
 
   async findAll(): Promise<Company[]> {
-    return this.companyRepository.find({ relations: ['contacts'] });
+    const localCompanies = await this.companyRepository.find({
+      relations: ['contacts'],
+    });
+
+    return [...localCompanies];
   }
 
   async findOne(id: number): Promise<Company | null> {
@@ -95,83 +74,40 @@ export class CompaniesService {
       company.title = data.title;
     }
 
+    const existingContactsMap = new Map(
+      company.contacts.map((contact) => [contact.id, contact]),
+    );
+
     const updatedContacts = [];
+
     for (const contact of data.contacts) {
-      if (contact.id) {
-        const existingContact = await this.contactRepository.findOne({
-          where: { id: contact.id, company: { id } },
+      if (contact.id && existingContactsMap.has(contact.id)) {
+        const existingContact = existingContactsMap.get(contact.id);
+        Object.assign(existingContact, {
+          name: contact.name,
+          lastName: contact.lastName,
         });
-
-        if (existingContact) {
-          Object.assign(existingContact, contact);
-          updatedContacts.push(existingContact);
-
-          try {
-            const contactUpdateUrl = `https://b24-kjr9os.bitrix24.com.br/rest/1/kj0k18cljjedxcfg/crm.contact.update.json`;
-            await axios.post(contactUpdateUrl, {
-              id: contact.id,
-              fields: {
-                NAME: contact.name,
-                LAST_NAME: contact.lastName,
-              },
-            });
-            console.log(`Contato ${contact.id} atualizado no Bitrix.`);
-          } catch (error) {
-            console.error(
-              `Erro ao atualizar contato ${contact.id} no Bitrix:`,
-              error.response?.data || error.message,
-            );
-          }
-        }
-      } else {
-        try {
-          const contactCreateUrl = `https://b24-kjr9os.bitrix24.com.br/rest/1/kj0k18cljjedxcfg/crm.contact.add.json`;
-          const response = await axios.post(contactCreateUrl, {
-            fields: {
-              NAME: contact.name,
-              LAST_NAME: contact.lastName,
-              COMPANY_ID: id,
-            },
-          });
-
-          const bitrixContactId = (response.data as { result: number }).result;
-
-          const newContact = this.contactRepository.create({
-            id: bitrixContactId,
-            name: contact.name,
-            lastName: contact.lastName,
-            company,
-          });
-
-          updatedContacts.push(newContact);
-        } catch (error) {
-          console.error(
-            `Erro ao criar contato no Bitrix (${contact.name}):`,
-            error.response?.data || error.message,
-          );
-        }
+        updatedContacts.push(existingContact);
+      } else if (!contact.id) {
+        const newContact = this.contactRepository.create({
+          name: contact.name,
+          lastName: contact.lastName,
+          company,
+        });
+        updatedContacts.push(newContact);
       }
     }
 
     await this.contactRepository.save(updatedContacts);
-    company.contacts = updatedContacts;
+
+    const allContacts = [...company.contacts, ...updatedContacts].filter(
+      (contact, index, self) =>
+        index === self.findIndex((c) => c.id === contact.id),
+    );
+
+    company.contacts = allContacts;
 
     await this.companyRepository.save(company);
-
-    // Atualiza empresa no Bitrix
-    try {
-      const companyUpdateUrl = `https://b24-kjr9os.bitrix24.com.br/rest/1/kj0k18cljjedxcfg/crm.company.update.json`;
-      await axios.post(companyUpdateUrl, {
-        id,
-        fields: { TITLE: company.title },
-      });
-      console.log(`Empresa ${id} atualizada no Bitrix com sucesso.`);
-    } catch (error) {
-      console.error(
-        `Erro ao atualizar empresa ${id} no Bitrix:`,
-        error.response?.data || error.message,
-      );
-    }
 
     return this.companyRepository.findOne({
       where: { id },
@@ -189,30 +125,6 @@ export class CompaniesService {
       throw new Error(`Empresa não encontrada!`);
     }
 
-    for (const contact of company.contacts) {
-      try {
-        const contactDeleteUrl = `https://b24-kjr9os.bitrix24.com.br/rest/1/kj0k18cljjedxcfg/crm.contact.delete.json`;
-        await axios.post(contactDeleteUrl, { id: contact.id });
-        console.log(`Contato ${contact.id} removido do Bitrix com sucesso.`);
-      } catch (error) {
-        console.error(
-          `Erro ao remover contato ${contact.id} do Bitrix:`,
-          error.response?.data || error.message,
-        );
-      }
-    }
-
-    try {
-      const companyDeleteUrl = `https://b24-kjr9os.bitrix24.com.br/rest/1/kj0k18cljjedxcfg/crm.company.delete.json`;
-      await axios.post(companyDeleteUrl, { id });
-      console.log(`Empresa ${id} removida do Bitrix com sucesso.`);
-    } catch (error) {
-      console.error(
-        `Erro ao remover empresa ${id} do Bitrix:`,
-        error.response?.data || error.message,
-      );
-    }
-
     await this.companyRepository.remove(company);
   }
 
@@ -226,16 +138,5 @@ export class CompaniesService {
     }
 
     await this.contactRepository.remove(contact);
-
-    try {
-      const contactDeleteUrl = `https://b24-kjr9os.bitrix24.com.br/rest/1/kj0k18cljjedxcfg/crm.contact.delete.json`;
-      await axios.post(contactDeleteUrl, { id });
-      console.log(`Contato ${id} removido do Bitrix com sucesso.`);
-    } catch (error) {
-      console.error(
-        `Erro ao remover contato ${id} do Bitrix:`,
-        error.response?.data || error.message,
-      );
-    }
   }
 }
